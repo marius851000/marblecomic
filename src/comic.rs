@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
 use std::fs::{read_dir, File};
 use std::io;
+use std::num::ParseIntError;
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -33,6 +35,26 @@ pub enum ComicDatabaseLoadError {
     CantOpenFile(#[source] io::Error, PathBuf),
     #[error("failed to deserialize a comic data file at {1}")]
     CantDeserializeComic(#[source] serde_json::Error, PathBuf),
+}
+
+#[derive(Error, Debug)]
+pub enum GetComicNavigationError {
+    #[error("failed to list sub content of {1}")]
+    CantReadDirectory(#[source] io::Error, PathBuf),
+    #[error("failed to read an entry of the content of the director {1}")]
+    CantReadDirEntry(#[source] io::Error, PathBuf),
+    #[error("this comic ({0}) doesn't exist")]
+    ComicDontExist(u64),
+    #[error("the file at {0} doesn't have a file name, but one is required")]
+    FileWithNoName(PathBuf),
+    #[error("can't convert an OsStr to a String")]
+    CantConvertOsToString(OsString),
+    #[error("the file at {0} doesn't have a stem (file name without extension)")]
+    FileWithNoStem(PathBuf),
+    #[error("can't get the {0} value of {1} when splited by '-' (count start at 0)")]
+    CantGetSplitedDash(u32, String),
+    #[error("can't convert the value {1} from {2} to an u64")]
+    CantConvertStringFromPathToInt(ParseIntError, String, PathBuf),
 }
 
 impl ComicDatabase {
@@ -96,27 +118,89 @@ impl ComicDatabase {
         self.comics.get(&id).map(|pair| &pair.1)
     }
 
-    //TODO: rewrite so name are saved
+    //TODO: get the section name
     //TODO: cache
-    pub fn get_comic_navigation(&self, id: u64) -> Vec<Vec<Option<PathBuf>>> {
+    pub fn get_comic_navigation(
+        &self,
+        id: u64,
+    ) -> Result<Vec<Vec<Option<PathBuf>>>, GetComicNavigationError> {
+        fn osstr_to_str(osstr: &OsStr) -> Result<&str, GetComicNavigationError> {
+            osstr.to_str().map_or(
+                Err(GetComicNavigationError::CantConvertOsToString(
+                    osstr.to_os_string(),
+                )),
+                |x| Ok(x),
+            )
+        };
+
         let mut result = Vec::new();
-        println!("{:?}", &self.comics.get(&id).unwrap().0);
-        let paths = read_dir(&self.comics.get(&id).unwrap().0).unwrap(); //TODO: get rid of unwrap
+        let comic_directory = &self
+            .comics
+            .get(&id)
+            .map_or(Err(GetComicNavigationError::ComicDontExist(id)), |x| Ok(x))?
+            .0;
+        let paths = read_dir(comic_directory).map_err(|err| {
+            GetComicNavigationError::CantReadDirectory(err, comic_directory.clone())
+        })?;
         for path in paths {
-            let path = path.unwrap().path(); //TODO: don't unwrap
-            let file_name = path.file_name().unwrap().to_str().unwrap(); //TODO: don't unwrap
+            let path = path
+                .map_err(|err| {
+                    GetComicNavigationError::CantReadDirEntry(err, comic_directory.clone())
+                })?
+                .path();
+            let file_name = osstr_to_str(path.file_name().map_or(
+                Err(GetComicNavigationError::FileWithNoName(path.clone())),
+                |x| Ok(x),
+            )?)?;
+
             if file_name == "data.json" {
                 continue;
             };
-            if file_name.split(".").last().unwrap() == "tmp" {
+
+            if let Some(Some("tmp")) = path.extension().map(|x| x.to_str()) {
                 continue;
-            }; //TODO: don't unwrap
-            let file_name_without_extension = file_name.split(".").next().unwrap();
+            };
+
+            let file_stem = osstr_to_str(path.file_stem().map_or(
+                Err(GetComicNavigationError::FileWithNoStem(path.clone())),
+                |x| Ok(x),
+            )?)?;
 
             let (part, page) = {
-                let mut splited = file_name_without_extension.split("-");
-                let first_part = splited.next().unwrap().parse::<u64>().unwrap();
-                let second_part = splited.next().unwrap().parse::<u64>().unwrap();
+                let mut splited = file_stem.split("-");
+                let first_part_string = splited.next().map_or(
+                    Err(GetComicNavigationError::CantGetSplitedDash(
+                        0,
+                        file_stem.to_string(),
+                    )),
+                    |x| Ok(x),
+                )?;
+                let first_part = first_part_string.parse::<u64>().map_err(|err| {
+                    GetComicNavigationError::CantConvertStringFromPathToInt(
+                        err,
+                        first_part_string.to_string(),
+                        path.clone(),
+                    )
+                })?;
+
+                let second_part_string = splited
+                    .next()
+                    .map_or(
+                        Err(GetComicNavigationError::CantGetSplitedDash(
+                            0,
+                            file_stem.to_string(),
+                        )),
+                        |x| Ok(x),
+                    )?;
+
+                let second_part = second_part_string.parse::<u64>().map_err(|err| {
+                    GetComicNavigationError::CantConvertStringFromPathToInt(
+                        err,
+                        first_part_string.to_string(),
+                        path.clone(),
+                    )
+                })?;
+                
                 //TODO: handle the case with multiple document by page
                 (first_part, second_part)
             };
@@ -132,7 +216,7 @@ impl ComicDatabase {
             result[part as usize][page as usize] = Some(path.into());
         }
 
-        result
+        Ok(result)
     }
 
     pub fn keywords(&self) -> &HashMap<String, HashMap<String, Vec<u64>>> {

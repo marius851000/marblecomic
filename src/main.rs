@@ -10,8 +10,8 @@ use rocket::State;
 
 use marblecomic::{Comic, ComicDatabase};
 
-use std::path::PathBuf;
 use std::fs::File;
+use std::path::PathBuf;
 
 fn present_page(content: Markup, title: &str) -> Markup {
     html!(
@@ -91,7 +91,7 @@ fn display_comic_page(comic_database: State<ComicDatabase>, comic_id: u64) -> Op
             h2 { "parts" }
 
             ul {
-                @for (chap_id, _) in comic_database.get_comic_navigation(comic.id).iter().enumerate() {
+                @for (chap_id, _) in comic_database.get_comic_navigation(comic.id).unwrap().iter().enumerate() {
                     li {
                         a href=(format!("/comic/{}/chap/{}", comic.id, chap_id)) {
                             "chapter " (chap_id)
@@ -122,7 +122,7 @@ fn display_chapter_page(
     } else {
         return None;
     };
-    let navigation = comic_database.get_comic_navigation(comic.id);
+    let navigation = comic_database.get_comic_navigation(comic.id).unwrap();
     let chap_navigation = if let Some(chap_navigation) = navigation.get(chap_id) {
         chap_navigation
     } else {
@@ -168,7 +168,8 @@ fn display_chapter_page(
             format!("{}, chap {}", name, chap_id)
         } else {
             format!("chap {} of an unnamed comic", chap_id)
-        }).as_ref(),
+        })
+        .as_ref(),
     ))
 }
 
@@ -177,14 +178,18 @@ fn send_picture(
     comic_database: State<ComicDatabase>,
     comic_id: u64,
     chap_id: usize,
-    page_id_and_extension: String
+    page_id_and_extension: String,
 ) -> File {
     //TODO: get rid of unwrap
-    let navigation = comic_database.get_comic_navigation(comic_id);
+    let navigation = comic_database.get_comic_navigation(comic_id).unwrap();
     let navigation_chapter = navigation.get(chap_id).unwrap();
 
     let page_id_and_extension_path = PathBuf::from(page_id_and_extension);
-    let page_stem = page_id_and_extension_path.file_stem().unwrap().to_str().unwrap();
+    let page_stem = page_id_and_extension_path
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
     let page_id = page_stem.parse::<usize>().unwrap();
 
     let page_path = navigation_chapter.get(page_id).unwrap().as_ref().unwrap();
@@ -197,28 +202,32 @@ fn send_picture(
 
 #[get("/")]
 fn index() -> Markup {
-    present_page(html!(p { "main page, nothing here (yet), use the upper menu to navigate" }), "MarbleComic")
+    present_page(
+        html!(p { "main page, nothing here (yet), use the upper menu to navigate" }),
+        "MarbleComic",
+    )
 }
 
 #[get("/keywords")]
-fn list_keywords(
-    comic_database: State<ComicDatabase>
-) -> Markup {
+fn list_keywords(comic_database: State<ComicDatabase>) -> Markup {
     let keywords = comic_database.keywords();
-    present_page(html!(
-        @for (keyword_section_name, keyword_section_data) in keywords {
-            h2 { (keyword_section_name) }
-            ul class="keyword_list" {
-                @for (keyword, _) in keyword_section_data {
-                    li {
-                        a href=(format!("keyword/{}/{}", keyword_section_name, keyword)) {
-                            (keyword)
+    present_page(
+        html!(
+            @for (keyword_section_name, keyword_section_data) in keywords {
+                h2 { (keyword_section_name) }
+                ul class="keyword_list" {
+                    @for (keyword, _) in keyword_section_data {
+                        li {
+                            a href=(format!("keyword/{}/{}", keyword_section_name, keyword)) {
+                                (keyword)
+                            }
                         }
                     }
                 }
             }
-        }
-    ), "keywords")
+        ),
+        "keywords",
+    )
 }
 
 #[get("/keyword/<keyword_section>/<keyword>")]
@@ -229,17 +238,24 @@ fn keyword_page(
 ) -> Markup {
     //TODO: get rid of unwrap
     let keywords = comic_database.keywords();
-    let keyword_comic_list = keywords.get(&keyword_section).unwrap().get(&keyword).unwrap();
-    present_page(html!(
-        ul {
-            @for comic_id in keyword_comic_list {
-                @let comic = comic_database.get_comic(*comic_id).unwrap();
-                li {
-                    (create_link_to_comic(&comic))
+    let keyword_comic_list = keywords
+        .get(&keyword_section)
+        .unwrap()
+        .get(&keyword)
+        .unwrap();
+    present_page(
+        html!(
+            ul {
+                @for comic_id in keyword_comic_list {
+                    @let comic = comic_database.get_comic(*comic_id).unwrap();
+                    li {
+                        (create_link_to_comic(&comic))
+                    }
                 }
             }
-        }
-    ), &format!("keyword {} ({})", keyword, keyword_section))
+        ),
+        &format!("keyword {} ({})", keyword, keyword_section),
+    )
 }
 
 pub struct MarbleOptions {
@@ -262,7 +278,15 @@ fn main() {
         .mount("/static", StaticFiles::from("static"))
         .mount(
             "/",
-            routes![list_comic, display_comic_page, display_chapter_page, send_picture, index, list_keywords, keyword_page],
+            routes![
+                list_comic,
+                display_comic_page,
+                display_chapter_page,
+                send_picture,
+                index,
+                list_keywords,
+                keyword_page
+            ],
         )
         .launch();
 }
