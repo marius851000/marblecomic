@@ -8,7 +8,7 @@ use rocket_contrib::serve::StaticFiles;
 
 use rocket::State;
 
-use marblecomic::{Comic, ComicDatabase};
+use marblecomic::{Comic, ComicDatabase, Tracker};
 
 use std::fs::File;
 use std::path::PathBuf;
@@ -63,7 +63,28 @@ fn present_error(error_message: &str, internal: bool) -> Markup {
     ), if internal {"internal error"} else {"error"})
 } */
 
-fn create_link_to_comic(comic: &Comic) -> Markup {
+fn create_link_to_comic(
+    comic: &Comic,
+    tracker: &Tracker,
+    comic_database: &ComicDatabase,
+) -> Markup {
+    let progress = tracker.get_progress(comic.id);
+    let have_progress = progress != (0, 0);
+    let navigation = comic_database.get_comic_navigation(comic.id).unwrap(); //TODO: proper error handling
+    let finished = if have_progress {
+        if navigation.len() == progress.0 + 1 {
+            let navigation_progress_chapter = navigation.get(progress.0).unwrap();
+            if navigation_progress_chapter.len() == progress.1 + 1 {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
     html!(
         a href=(format!("/comic/{}", comic.id)) {
             @if let Some(name) = &comic.comic_name {
@@ -71,18 +92,26 @@ fn create_link_to_comic(comic: &Comic) -> Markup {
             } @else {
                 "unnamed"
             }
+            @if have_progress {
+                " "
+                @if finished {
+                    "(finished)"
+                } @else {
+                    " (currently at chapter " (progress.0) " image " (progress.1) ")"
+                }
+            }
         }
-    )
+    ) //TODO: check if the reading is finished
 }
 
 #[get("/list")]
-fn list_comic(comic_database: State<ComicDatabase>) -> Markup {
+fn list_comic(comic_database: State<ComicDatabase>, tracker: State<Tracker>) -> Markup {
     present_page(
         html!(
             ul {
                 @for (_, (_, comic)) in comic_database.comics().iter() {
                     @if comic.found {
-                        li { (create_link_to_comic(comic)) }
+                        li { (create_link_to_comic(comic, &*tracker, &*comic_database)) }
                     }
                 }
             }
@@ -261,6 +290,7 @@ fn list_keywords(comic_database: State<ComicDatabase>) -> Markup {
 #[get("/keyword/<keyword_section>/<keyword>")]
 fn keyword_page(
     comic_database: State<ComicDatabase>,
+    tracker: State<Tracker>,
     keyword_section: String,
     keyword: String,
 ) -> Markup {
@@ -277,7 +307,7 @@ fn keyword_page(
                 @for comic_id in keyword_comic_list {
                     @let comic = comic_database.get_comic(*comic_id).unwrap();
                     li {
-                        (create_link_to_comic(&comic))
+                        (create_link_to_comic(&comic, &tracker, &*comic_database))
                     }
                 }
             }
@@ -286,14 +316,48 @@ fn keyword_page(
     )
 }
 
+#[get("/set_progress/<comic_id>/<chapter_id>/<image_id>")]
+fn set_progress(
+    tracker: State<Tracker>,
+    option: State<MarbleOptions>,
+    comic_id: u64,
+    chapter_id: usize,
+    image_id: usize,
+) -> Option<Markup> {
+    if option.enable_progress_writing {
+        tracker.set_progress(comic_id, chapter_id, image_id);
+        tracker.save(&option.tracker_path).unwrap();
+        Some(present_page(
+            html!(
+                "the progess is sucessfully save." br {}
+                a href=(format!("/comic/{}/chap/{}", comic_id, chapter_id)) {
+                    "return to this comic page"
+                }
+            ),
+            "progress saved",
+        ))
+    } else {
+        None
+    }
+}
 pub struct MarbleOptions {
     pub enable_progress_writing: bool,
+    pub tracker_path: PathBuf,
 }
 
 fn main() {
+    let tracker_path = PathBuf::from("./progress.json");
+
+    let tracker = if let Ok(tracker_file) = File::open(&tracker_path) {
+        Tracker::new_from_reader(tracker_file).unwrap()
+    } else {
+        Tracker::default()
+    };
+
     let mut comic_database = ComicDatabase::default();
     let option = MarbleOptions {
-        enable_progress_writing: false,
+        enable_progress_writing: true,
+        tracker_path,
     };
 
     comic_database
@@ -303,6 +367,7 @@ fn main() {
     rocket::ignite()
         .manage(comic_database)
         .manage(option)
+        .manage(tracker)
         .mount("/static", StaticFiles::from("static"))
         .mount(
             "/",
@@ -313,7 +378,8 @@ fn main() {
                 send_picture,
                 index,
                 list_keywords,
-                keyword_page
+                keyword_page,
+                set_progress
             ],
         )
         .launch();

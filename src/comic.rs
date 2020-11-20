@@ -183,15 +183,13 @@ impl ComicDatabase {
                     )
                 })?;
 
-                let second_part_string = splited
-                    .next()
-                    .map_or(
-                        Err(GetComicNavigationError::CantGetSplitedDash(
-                            0,
-                            file_stem.to_string(),
-                        )),
-                        |x| Ok(x),
-                    )?;
+                let second_part_string = splited.next().map_or(
+                    Err(GetComicNavigationError::CantGetSplitedDash(
+                        0,
+                        file_stem.to_string(),
+                    )),
+                    |x| Ok(x),
+                )?;
 
                 let second_part = second_part_string.parse::<u64>().map_err(|err| {
                     GetComicNavigationError::CantConvertStringFromPathToInt(
@@ -200,7 +198,7 @@ impl ComicDatabase {
                         path.clone(),
                     )
                 })?;
-                
+
                 //TODO: handle the case with multiple document by page
                 (first_part, second_part)
             };
