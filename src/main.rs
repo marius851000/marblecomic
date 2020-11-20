@@ -35,6 +35,34 @@ fn present_page(content: Markup, title: &str) -> Markup {
     )
 }
 
+//TODO: ensure the error code
+/*
+fn present_error(error_message: &str, internal: bool) -> Markup {
+    present_page(html!(
+        div class="errormessage" {
+            p {
+                @if internal {
+                    "An internal error occured."
+                    br {}
+                    "That mean it is an error from the programmer or the server admin (or this error is eroneously reported as being an internal error)"
+                    br {}
+                    "please content the admin with this page url"
+                    br {}
+                }
+                @else {
+                    "An problem occured."
+                    br {}
+                    "If you think this is an error with the server, please contact the server administrater with the page url"
+                    br {}
+                }
+                "error message : " (error_message)
+
+
+            }
+        }
+    ), if internal {"internal error"} else {"error"})
+} */
+
 fn create_link_to_comic(comic: &Comic) -> Markup {
     html!(
         a href=(format!("/comic/{}", comic.id)) {
@@ -179,7 +207,7 @@ fn send_picture(
     comic_id: u64,
     chap_id: usize,
     page_id_and_extension: String,
-) -> File {
+) -> Option<File> {
     //TODO: get rid of unwrap
     let navigation = comic_database.get_comic_navigation(comic_id).unwrap();
     let navigation_chapter = navigation.get(chap_id).unwrap();
@@ -194,9 +222,9 @@ fn send_picture(
 
     let page_path = navigation_chapter.get(page_id).unwrap().as_ref().unwrap();
     if page_path.extension() != page_id_and_extension_path.extension() {
-        todo!();
+        None
     } else {
-        File::open(page_path).unwrap()
+        Some(File::open(page_path).unwrap())
     }
 }
 
