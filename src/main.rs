@@ -101,7 +101,7 @@ fn create_link_to_comic(
                 }
             }
         }
-    ) //TODO: check if the reading is finished
+    )
 }
 
 #[get("/list")]
@@ -201,6 +201,7 @@ fn display_chapter_page(
                         p { "page " (page_id) }
                         img src=(format!("/image/comic/{}/chap/{}/{}.{}", comic.id, chap_id, page_id, file_path.extension().unwrap().to_str().unwrap())) {} //TODO: do not use unwrap
                         @if options.enable_progress_writing {
+                            br {}
                             a href=(format!("/set_progress/{}/{}/{}", comic.id, chap_id, page_id)) {
                                 "set progress to this page"
                             }
