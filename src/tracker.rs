@@ -25,7 +25,7 @@ pub enum TrackerSaveError {
 
 #[derive(Default)]
 pub struct Tracker {
-    data: Mutex<HashMap<u64, (usize, usize)>>, //TODO: use dashmap
+    data: Mutex<HashMap<usize, (usize, usize)>>, //TODO: use dashmap
 }
 
 impl Tracker {
@@ -34,7 +34,7 @@ impl Tracker {
         Ok(Self { data })
     }
 
-    pub fn get_progress(&self, comic_id: u64) -> (usize, usize) {
+    pub fn get_progress(&self, comic_id: usize) -> (usize, usize) {
         self.data
             .lock()
             .unwrap()
@@ -43,7 +43,7 @@ impl Tracker {
             .unwrap_or((0, 0))
     }
 
-    pub fn set_progress(&self, comic_id: u64, chapter_id: usize, image_id: usize) {
+    pub fn set_progress(&self, comic_id: usize, chapter_id: usize, image_id: usize) {
         self.data
             .lock()
             .unwrap()

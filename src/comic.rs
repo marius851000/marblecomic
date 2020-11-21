@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use vec_map::VecMap;
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -12,19 +13,19 @@ use thiserror::Error;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Comic {
-    pub id: u64,
+    pub id: usize,
     pub comic_name: Option<String>,
     pub description: Option<String>,
     pub keywords: HashMap<String, Vec<String>>,
-    pub translations: Vec<(String, u64)>,
+    pub translations: Vec<(String, usize)>,
     pub found: bool,
 }
 
 #[derive(Default)]
 pub struct ComicDatabase {
-    comics: HashMap<u64, (PathBuf, Comic)>,
-    keywords: HashMap<String, HashMap<String, Vec<u64>>>,
-    navigation_cache: Mutex<HashMap<u64, Vec<Vec<Option<PathBuf>>>>>,
+    comics: VecMap<(PathBuf, Comic)>,
+    keywords: HashMap<String, HashMap<String, Vec<usize>>>,
+    navigation_cache: Mutex<VecMap<Vec<Vec<Option<PathBuf>>>>>,
 }
 
 #[derive(Error, Debug)]
@@ -46,7 +47,7 @@ pub enum GetComicNavigationError {
     #[error("failed to read an entry of the content of the director {1}")]
     CantReadDirEntry(#[source] io::Error, PathBuf),
     #[error("this comic ({0}) doesn't exist")]
-    ComicDontExist(u64),
+    ComicDontExist(usize),
     #[error("the file at {0} doesn't have a file name, but one is required")]
     FileWithNoName(PathBuf),
     #[error("can't convert an OsStr to a String")]
@@ -55,7 +56,7 @@ pub enum GetComicNavigationError {
     FileWithNoStem(PathBuf),
     #[error("can't get the {0} value of {1} when splited by '-' (count start at 0)")]
     CantGetSplitedDash(u32, String),
-    #[error("can't convert the value {1} from {2} to an u64")]
+    #[error("can't convert the value {1} from {2} to an usize")]
     CantConvertStringFromPathToInt(ParseIntError, String, PathBuf),
 }
 
@@ -71,7 +72,7 @@ impl ComicDatabase {
                     }
                 }
             } else {
-                let mut new_category_map: HashMap<String, Vec<u64>> = HashMap::new();
+                let mut new_category_map: HashMap<String, Vec<usize>> = HashMap::new();
                 for section_name in values {
                     if let Some(section_vec) = new_category_map.get_mut(section_name) {
                         section_vec.push(comic.id);
@@ -126,22 +127,22 @@ impl ComicDatabase {
         Ok(())
     }
 
-    pub fn comics(&self) -> &HashMap<u64, (PathBuf, Comic)> {
+    pub fn comics(&self) -> &VecMap<(PathBuf, Comic)> {
         &self.comics
     }
 
-    pub fn get_comic(&self, id: u64) -> Option<&Comic> {
-        self.comics.get(&id).map(|pair| &pair.1)
+    pub fn get_comic(&self, id: usize) -> Option<&Comic> {
+        self.comics.get(id).map(|pair| &pair.1)
     }
 
     //TODO: get the section name
     pub fn get_comic_navigation(
         &self,
-        id: u64,
+        id: usize,
     ) -> Result<Vec<Vec<Option<PathBuf>>>, GetComicNavigationError> {
         let mut navigation_cache_lock = self.navigation_cache.lock().unwrap();
 
-        if let Some(cached) = navigation_cache_lock.get(&id) {
+        if let Some(cached) = navigation_cache_lock.get(id) {
             return Ok((*cached).clone());
         };
 
@@ -157,9 +158,10 @@ impl ComicDatabase {
         let mut result = Vec::new();
         let comic_directory = &self
             .comics
-            .get(&id)
+            .get(id)
             .map_or(Err(GetComicNavigationError::ComicDontExist(id)), |x| Ok(x))?
             .0;
+
         let paths = read_dir(comic_directory).map_err(|err| {
             GetComicNavigationError::CantReadDirectory(err, comic_directory.clone())
         })?;
@@ -196,7 +198,7 @@ impl ComicDatabase {
                     )),
                     |x| Ok(x),
                 )?;
-                let first_part = first_part_string.parse::<u64>().map_err(|err| {
+                let first_part = first_part_string.parse::<usize>().map_err(|err| {
                     GetComicNavigationError::CantConvertStringFromPathToInt(
                         err,
                         first_part_string.to_string(),
@@ -212,7 +214,7 @@ impl ComicDatabase {
                     |x| Ok(x),
                 )?;
 
-                let second_part = second_part_string.parse::<u64>().map_err(|err| {
+                let second_part = second_part_string.parse::<usize>().map_err(|err| {
                     GetComicNavigationError::CantConvertStringFromPathToInt(
                         err,
                         first_part_string.to_string(),
@@ -239,7 +241,7 @@ impl ComicDatabase {
         Ok(result)
     }
 
-    pub fn keywords(&self) -> &HashMap<String, HashMap<String, Vec<u64>>> {
+    pub fn keywords(&self) -> &HashMap<String, HashMap<String, Vec<usize>>> {
         &self.keywords
     }
 }

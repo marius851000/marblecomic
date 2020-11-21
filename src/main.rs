@@ -119,7 +119,7 @@ fn list_comic(comic_database: State<ComicDatabase>, tracker: State<Tracker>) -> 
 }
 
 #[get("/comic/<comic_id>")]
-fn display_comic_page(comic_database: State<ComicDatabase>, comic_id: u64) -> Option<Markup> {
+fn display_comic_page(comic_database: State<ComicDatabase>, comic_id: usize) -> Option<Markup> {
     let comic = if let Some(comic) = comic_database.get_comic(comic_id) {
         comic
     } else {
@@ -167,7 +167,7 @@ fn display_comic_page(comic_database: State<ComicDatabase>, comic_id: u64) -> Op
 
 #[get("/comic/<comic_id>/chap/<chap_id>")]
 fn display_chapter_page(
-    comic_id: u64,
+    comic_id: usize,
     chap_id: usize,
     comic_database: State<ComicDatabase>,
     options: State<MarbleOptions>,
@@ -232,7 +232,7 @@ fn display_chapter_page(
 #[get("/image/comic/<comic_id>/chap/<chap_id>/<page_id_and_extension>")]
 fn send_picture(
     comic_database: State<ComicDatabase>,
-    comic_id: u64,
+    comic_id: usize,
     chap_id: usize,
     page_id_and_extension: String,
 ) -> Result<File, NotFound<Markup>> {
@@ -320,7 +320,7 @@ fn keyword_page(
 fn set_progress(
     tracker: State<Tracker>,
     option: State<MarbleOptions>,
-    comic_id: u64,
+    comic_id: usize,
     chapter_id: usize,
     image_id: usize,
 ) -> Result<Markup, Forbidden<Markup>> {

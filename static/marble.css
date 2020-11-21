@@ -2,6 +2,15 @@
 	background-color: #fb8888;
 }
 
+#mainmenu {
+	display: block;
+}
+
+#mainmenu li {
+	display: inline;
+	padding: 1%;
+}
+
 .page {
 	border-style: solid;
 	border-color: blue;

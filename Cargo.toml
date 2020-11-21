@@ -12,6 +12,7 @@ serde_json = "1.0"
 thiserror = "1.0.22"
 rocket = "0.4.5"
 maud = { version = "0.22.0", features = ["rocket"] }
+vec_map = "0.8.2"
 
 [dependencies.rocket_contrib]
 version = "0.4.5"
