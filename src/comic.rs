@@ -80,7 +80,21 @@ impl ComicDatabase {
                 self.keywords
                     .insert(keyword_category.clone(), new_category_map);
             }
-        }
+        };
+
+        if !self.keywords.contains_key("translation") {
+            self.keywords.insert("translation".into(), HashMap::new());
+        };
+        let trans_hashmap = self.keywords.get_mut("translation").unwrap(); //TODO: check for a get_key_or_create
+        for (trans_lang, trans_comic_id) in &comic.translations {
+            if *trans_comic_id == comic.id {
+                if let Some(lang_vec) = trans_hashmap.get_mut(trans_lang) {
+                    lang_vec.push(comic.id);
+                } else {
+                    trans_hashmap.insert(trans_lang.to_string(), vec![comic.id]);
+                }
+            }
+        };
         self.comics.insert(comic.id, (path, comic));
     }
 

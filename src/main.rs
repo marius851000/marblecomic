@@ -362,7 +362,7 @@ fn main() {
     };
 
     comic_database
-        .load_from_dir(PathBuf::from("./comics"))
+        .load_from_dir(PathBuf::from("/run/media/marius/f0785b86-0e54-43be-9bb0-03da4436baec/canterlotcomics/backup"))
         .unwrap();
 
     rocket::ignite()
