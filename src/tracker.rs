@@ -25,7 +25,7 @@ pub enum TrackerSaveError {
 
 #[derive(Default)]
 pub struct Tracker {
-    data: Mutex<HashMap<usize, (usize, usize)>>, //TODO: use dashmap
+    pub data: Mutex<HashMap<usize, (usize, usize)>>, //TODO: use dashmap
 }
 
 impl Tracker {
@@ -50,9 +50,13 @@ impl Tracker {
             .insert(comic_id, (chapter_id, image_id));
     }
 
+    pub fn list_comic_with_progress(&self) -> Vec<usize> {
+        self.data.lock().unwrap().iter().map(|(k, _)| *k).collect()
+    }
+
     pub fn save(&self, path: &PathBuf) -> Result<(), TrackerSaveError> {
         //do not use a serde_json::to_writer, as an error in this case will result to the tracker file being empty
-        let value_vec = serde_json::to_vec(&*self.data.lock().unwrap())?;
+        let value_vec = serde_json::to_vec_pretty(&*self.data.lock().unwrap())?;
         let mut writer = File::create(path)
             .map_err(|err| TrackerSaveError::CantCreateFile(err, path.clone()))?;
         writer

@@ -61,15 +61,8 @@ fn present_error(error_message: &str, internal: bool) -> Markup {
     ), if internal {"internal error"} else {"error"})
 }
 
-fn create_link_to_comic(
-    comic: &Comic,
-    tracker: &Tracker,
-    comic_database: &ComicDatabase,
-) -> Markup {
-    let progress = tracker.get_progress(comic.id);
-    let have_progress = progress != (0, 0);
-    let navigation = comic_database.get_comic_navigation(comic.id).unwrap(); //TODO: proper error handling
-    let finished = if have_progress {
+fn is_finished(navigation: &Vec<Vec<Option<PathBuf>>>, progress: (usize, usize)) -> bool {
+    if progress != (0, 0) {
         if navigation.len() == progress.0 + 1 {
             let navigation_progress_chapter = navigation.get(progress.0).unwrap();
             if navigation_progress_chapter.len() == progress.1 + 1 {
@@ -82,7 +75,18 @@ fn create_link_to_comic(
         }
     } else {
         false
-    };
+    }
+}
+
+fn create_link_to_comic(
+    comic: &Comic,
+    tracker: &Tracker,
+    comic_database: &ComicDatabase,
+) -> Markup {
+    let progress = tracker.get_progress(comic.id);
+    let have_progress = progress != (0, 0);
+    let navigation = comic_database.get_comic_navigation(comic.id).unwrap(); //TODO: proper error handling
+    let finished = is_finished(&navigation, progress);
     html!(
         a href=(format!("/comic/{}", comic.id)) {
             @if let Some(name) = &comic.comic_name {
@@ -257,9 +261,22 @@ fn send_picture(
 }
 
 #[get("/")]
-fn index() -> Markup {
+fn index(
+    tracker: State<Tracker>,
+    comic_database: State<ComicDatabase>,
+) -> Markup {
+    let tracked = tracker.list_comic_with_progress();
     present_page(
-        html!(p { "main page, nothing here (yet), use the upper menu to navigate" }),
+        html!(
+            h2 { "comic with ongoing reading" }
+            @for comic_id in tracked {
+                @let comic = comic_database.get_comic(comic_id).unwrap();
+                @let navigation = comic_database.get_comic_navigation(comic.id).unwrap();
+                @if !is_finished(&navigation, tracker.get_progress(comic.id)) {
+                    li { (create_link_to_comic(comic, &*tracker, &*comic_database)) }
+                }
+            }
+        ),
         "MarbleComic",
     )
 }
