@@ -25,7 +25,7 @@ pub enum TrackerSaveError {
 
 #[derive(Default)]
 pub struct Tracker {
-    data: Mutex<HashMap<u64, (usize, usize)>>,
+    data: Mutex<HashMap<u64, (usize, usize)>>, //TODO: use dashmap
 }
 
 impl Tracker {

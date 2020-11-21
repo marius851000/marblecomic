@@ -6,6 +6,7 @@ use std::fs::{read_dir, File};
 use std::io;
 use std::num::ParseIntError;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use thiserror::Error;
 
@@ -23,6 +24,7 @@ pub struct Comic {
 pub struct ComicDatabase {
     comics: HashMap<u64, (PathBuf, Comic)>,
     keywords: HashMap<String, HashMap<String, Vec<u64>>>,
+    navigation_cache: Mutex<HashMap<u64, Vec<Vec<Option<PathBuf>>>>>,
 }
 
 #[derive(Error, Debug)]
@@ -133,11 +135,16 @@ impl ComicDatabase {
     }
 
     //TODO: get the section name
-    //TODO: cache
     pub fn get_comic_navigation(
         &self,
         id: u64,
     ) -> Result<Vec<Vec<Option<PathBuf>>>, GetComicNavigationError> {
+        let mut navigation_cache_lock = self.navigation_cache.lock().unwrap();
+
+        if let Some(cached) = navigation_cache_lock.get(&id) {
+            return Ok((*cached).clone());
+        };
+
         fn osstr_to_str(osstr: &OsStr) -> Result<&str, GetComicNavigationError> {
             osstr.to_str().map_or(
                 Err(GetComicNavigationError::CantConvertOsToString(
@@ -228,6 +235,7 @@ impl ComicDatabase {
             result[part as usize][page as usize] = Some(path.into());
         }
 
+        navigation_cache_lock.insert(id, result.clone());
         Ok(result)
     }
 
