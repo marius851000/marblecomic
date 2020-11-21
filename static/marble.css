@@ -2,12 +2,21 @@
 	background-color: #fb8888;
 }
 
-#mainmenu {
+#mainmenu ul {
 	display: block;
 }
 
 #mainmenu li {
-	display: inline;
+	display: inline-block;
+	padding: 1%;
+}
+
+.keyword_list {
+	display: block;
+}
+
+.keyword {
+	display: inline-block;
 	padding: 1%;
 }
 

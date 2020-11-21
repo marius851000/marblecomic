@@ -273,7 +273,7 @@ fn list_keywords(comic_database: State<ComicDatabase>) -> Markup {
                 h2 { (keyword_section_name) }
                 ul class="keyword_list" {
                     @for (keyword, _) in keyword_section_data {
-                        li {
+                        li class="keyword" {
                             a href=(format!("keyword/{}/{}", keyword_section_name, keyword)) {
                                 (keyword)
                             }
