@@ -6,7 +6,7 @@ use maud::{html, Markup, DOCTYPE};
 
 use rocket_contrib::serve::StaticFiles;
 
-use rocket::State;
+use rocket::{State, response::status::{NotFound, Forbidden}};
 
 use marblecomic::{Comic, ComicDatabase, Tracker};
 
@@ -35,8 +35,6 @@ fn present_page(content: Markup, title: &str) -> Markup {
     )
 }
 
-//TODO: ensure the error code
-/*
 fn present_error(error_message: &str, internal: bool) -> Markup {
     present_page(html!(
         div class="errormessage" {
@@ -61,7 +59,7 @@ fn present_error(error_message: &str, internal: bool) -> Markup {
             }
         }
     ), if internal {"internal error"} else {"error"})
-} */
+}
 
 fn create_link_to_comic(
     comic: &Comic,
@@ -173,17 +171,17 @@ fn display_chapter_page(
     chap_id: usize,
     comic_database: State<ComicDatabase>,
     options: State<MarbleOptions>,
-) -> Option<Markup> {
+) -> Result<Markup, NotFound<Markup>> {
     let comic = if let Some(comic) = comic_database.get_comic(comic_id) {
         comic
     } else {
-        return None;
+        return Err(NotFound(present_error("comic not found", false)))
     };
     let navigation = comic_database.get_comic_navigation(comic.id).unwrap();
     let chap_navigation = if let Some(chap_navigation) = navigation.get(chap_id) {
         chap_navigation
     } else {
-        return None;
+        return Err(NotFound(present_error("chapter not found", false)));
     };
 
     let previous_chapter_id = chap_id.checked_sub(1);
@@ -193,7 +191,7 @@ fn display_chapter_page(
         None
     };
 
-    Some(present_page(
+    Ok(present_page(
         html!(
             @for (page_id, option_path) in chap_navigation.iter().enumerate() {
                 @if let Some(file_path) = option_path {
@@ -237,7 +235,7 @@ fn send_picture(
     comic_id: u64,
     chap_id: usize,
     page_id_and_extension: String,
-) -> Option<File> {
+) -> Result<File, NotFound<Markup>> {
     //TODO: get rid of unwrap
     let navigation = comic_database.get_comic_navigation(comic_id).unwrap();
     let navigation_chapter = navigation.get(chap_id).unwrap();
@@ -252,9 +250,9 @@ fn send_picture(
 
     let page_path = navigation_chapter.get(page_id).unwrap().as_ref().unwrap();
     if page_path.extension() != page_id_and_extension_path.extension() {
-        None
+        Err(NotFound(present_error("the extension does not match the expected one", false)))
     } else {
-        Some(File::open(page_path).unwrap())
+        Ok(File::open(page_path).unwrap())
     }
 }
 
@@ -294,15 +292,16 @@ fn keyword_page(
     tracker: State<Tracker>,
     keyword_section: String,
     keyword: String,
-) -> Markup {
+) -> Result<Markup, NotFound<Markup>> {
     //TODO: get rid of unwrap
     let keywords = comic_database.keywords();
     let keyword_comic_list = keywords
         .get(&keyword_section)
-        .unwrap()
+        .map_or(Err(NotFound(present_error("keyword section is unknown", false))), |x| Ok(x))?
         .get(&keyword)
-        .unwrap();
-    present_page(
+        .map_or(Err(NotFound(present_error("keyword is unknwon", false))), |x| Ok(x))?;
+
+    Ok(present_page(
         html!(
             ul {
                 @for comic_id in keyword_comic_list {
@@ -314,7 +313,7 @@ fn keyword_page(
             }
         ),
         &format!("keyword {} ({})", keyword, keyword_section),
-    )
+    ))
 }
 
 #[get("/set_progress/<comic_id>/<chapter_id>/<image_id>")]
@@ -324,11 +323,11 @@ fn set_progress(
     comic_id: u64,
     chapter_id: usize,
     image_id: usize,
-) -> Option<Markup> {
+) -> Result<Markup, Forbidden<Markup>> {
     if option.enable_progress_writing {
         tracker.set_progress(comic_id, chapter_id, image_id);
         tracker.save(&option.tracker_path).unwrap();
-        Some(present_page(
+        Ok(present_page(
             html!(
                 "the progess is sucessfully save." br {}
                 a href=(format!("/comic/{}/chap/{}", comic_id, chapter_id)) {
@@ -338,7 +337,7 @@ fn set_progress(
             "progress saved",
         ))
     } else {
-        None
+        Err(Forbidden(Some(present_error("progress saving are disabled on this server", false))))
     }
 }
 pub struct MarbleOptions {
