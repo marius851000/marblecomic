@@ -5,6 +5,8 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::Comic;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -34,13 +36,19 @@ impl Tracker {
         Ok(Self { data })
     }
 
-    pub fn get_progress(&self, comic_id: usize) -> (usize, usize) {
-        self.data
+    pub fn get_progress(&self, comic: &Comic) -> (usize, usize) {
+        let data = self.data
             .lock()
-            .unwrap()
-            .get(&comic_id)
-            .cloned()
-            .unwrap_or((0, 0))
+            .unwrap();
+        if let Some(progress) = data.get(&comic.id) {
+            return progress.clone()
+        };
+        for translated_id in comic.translations.iter().map(|(_, id)| id) {
+            if let Some(progress) = data.get(&translated_id) {
+                return progress.clone();
+            }
+        }
+        (0, 0)
     }
 
     pub fn set_progress(&self, comic_id: usize, chapter_id: usize, image_id: usize) {

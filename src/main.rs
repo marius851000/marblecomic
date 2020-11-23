@@ -65,11 +65,13 @@ fn is_finished(navigation: &Vec<Vec<Option<PathBuf>>>, progress: (usize, usize))
     if progress != (0, 0) {
         if navigation.len() == progress.0 + 1 {
             let navigation_progress_chapter = navigation.get(progress.0).unwrap();
-            if navigation_progress_chapter.len() == progress.1 + 1 {
+            if navigation_progress_chapter.len() <= progress.1 + 1 {
                 true
             } else {
                 false
             }
+        } else if navigation.len() < progress.0 + 1 {
+            true
         } else {
             false
         }
@@ -83,7 +85,7 @@ fn create_link_to_comic(
     tracker: &Tracker,
     comic_database: &ComicDatabase,
 ) -> Markup {
-    let progress = tracker.get_progress(comic.id);
+    let progress = tracker.get_progress(&comic);
     let have_progress = progress != (0, 0);
     let navigation = comic_database.get_comic_navigation(comic.id).unwrap(); //TODO: proper error handling
     let finished = is_finished(&navigation, progress);
@@ -272,7 +274,7 @@ fn index(
             @for comic_id in tracked {
                 @let comic = comic_database.get_comic(comic_id).unwrap();
                 @let navigation = comic_database.get_comic_navigation(comic.id).unwrap();
-                @if !is_finished(&navigation, tracker.get_progress(comic.id)) {
+                @if !is_finished(&navigation, tracker.get_progress(&comic)) {
                     li { (create_link_to_comic(comic, &*tracker, &*comic_database)) }
                 }
             }
